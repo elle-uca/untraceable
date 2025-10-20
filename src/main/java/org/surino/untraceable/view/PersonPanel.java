@@ -1,27 +1,13 @@
 package org.surino.untraceable.view;
 
-
-import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.Frame;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.swing.DefaultCellEditor;
-import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JDialog;
-import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -32,11 +18,10 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.table.AbstractTableModel;
 
 import org.springframework.stereotype.Component;
-import org.surino.untraceable.controller.repository.PersonRepository;
+import org.surino.untraceable.controller.ImportExportService;
+import org.surino.untraceable.controller.PersonRepository;
 import org.surino.untraceable.model.Person;
 import org.surino.untraceable.model.Status;
 
@@ -47,77 +32,79 @@ import net.miginfocom.swing.MigLayout;
 public class PersonPanel extends JPanel {
 
     private final PersonRepository personRepository;
+    private final ImportExportService importExportService;
 
-    private JTextField nomeField;
-    private JTextField cognomeField;
-    private JTextField indirizzoField;
+    private JTextField nameField;
+    private JTextField surnameField;
+    private JTextField addressField;
     private JComboBox<Status> statusCombo;
-    private JTextField ricercaField;
+    private JTextField searchField;
 
     private JTable table;
     private PersonTableModel tableModel;
-    private List<Person> tuttePersone;
+    private List<Person> allPeople;
 
-    public PersonPanel(PersonRepository personRepository) {
+    public PersonPanel(PersonRepository personRepository, ImportExportService importExportService) {
         this.personRepository = personRepository;
+        this.importExportService = importExportService;
         initUI();
-        caricaPersone();
+        loadPeople();
     }
 
     private void initUI() {
         setLayout(new MigLayout("fillx, insets 10", "[grow, fill]", "[]10[]10[grow]"));
 
-        // 🔹 PANNELLO FORM
+        // 🔹 FORM PANEL
         JPanel formPanel = new JPanel(new MigLayout("insets 0", "[][grow,fill]"));
-        nomeField = new JTextField(15);
-        cognomeField = new JTextField(15);
-        indirizzoField = new JTextField(20);
+        nameField = new JTextField(15);
+        surnameField = new JTextField(15);
+        addressField = new JTextField(20);
         statusCombo = new JComboBox<>(Status.values());
 
-        formPanel.add(new JLabel("Nome:"));
-        formPanel.add(nomeField, "wrap");
-        formPanel.add(new JLabel("Cognome:"));
-        formPanel.add(cognomeField, "wrap");
-        formPanel.add(new JLabel("Indirizzo:"));
-        formPanel.add(indirizzoField, "wrap");
+        formPanel.add(new JLabel("Name:"));
+        formPanel.add(nameField, "wrap");
+        formPanel.add(new JLabel("Surname:"));
+        formPanel.add(surnameField, "wrap");
+        formPanel.add(new JLabel("Address:"));
+        formPanel.add(addressField, "wrap");
         formPanel.add(new JLabel("Status:"));
         formPanel.add(statusCombo, "wrap");
 
-        // 🔹 PULSANTI
-        JButton salvaButton = new JButton("💾 Salva");
-        JButton eliminaButton = new JButton("🗑️ Elimina selezionato");
-        JButton importaButton = new JButton("📥 Importa CSV");
-        JButton esportaButton = new JButton("📤 Esporta CSV");
+        // 🔹 BUTTONS
+        JButton saveButton = new JButton("💾 Save");
+        JButton deleteButton = new JButton("🗑️ Delete Selected");
+        JButton importButton = new JButton("📥 Import CSV");
+        JButton exportButton = new JButton("📤 Export CSV");
 
-        salvaButton.addActionListener(e -> salvaPersona());
-        eliminaButton.addActionListener(e -> eliminaPersona());
-        importaButton.addActionListener(e -> importaCSV());
-        esportaButton.addActionListener(e -> esportaCSV());
+        saveButton.addActionListener(e -> savePerson());
+        deleteButton.addActionListener(e -> deletePerson());
+        importButton.addActionListener(e -> importCSV());
+        exportButton.addActionListener(e -> exportCSV());
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        buttonPanel.add(salvaButton);
-        buttonPanel.add(eliminaButton);
-        buttonPanel.add(importaButton);
-        buttonPanel.add(esportaButton);
+        buttonPanel.add(saveButton);
+        buttonPanel.add(deleteButton);
+        buttonPanel.add(importButton);
+        buttonPanel.add(exportButton);
 
         formPanel.add(buttonPanel, "span, growx, wrap");
         add(formPanel, "growx, wrap");
 
-        // 🔹 RICERCA
+        // 🔹 SEARCH PANEL
         JPanel searchPanel = new JPanel(new MigLayout("insets 0", "[][grow,fill]"));
-        ricercaField = new JTextField(20);
-        searchPanel.add(new JLabel("🔍 Ricerca:"));
-        searchPanel.add(ricercaField, "growx");
+        searchField = new JTextField(20);
+        searchPanel.add(new JLabel("🔍 Search:"));
+        searchPanel.add(searchField, "growx");
         add(searchPanel, "growx, wrap");
 
-        ricercaField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e) { filtra(); }
-            @Override public void removeUpdate(DocumentEvent e) { filtra(); }
-            @Override public void changedUpdate(DocumentEvent e) { filtra(); }
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { filter(); }
+            @Override public void removeUpdate(DocumentEvent e) { filter(); }
+            @Override public void changedUpdate(DocumentEvent e) { filter(); }
         });
 
-        // 🔹 TABELLA
-        tableModel = new PersonTableModel();
+        // 🔹 TABLE
+        tableModel = new PersonTableModel(personRepository);
         table = new JTable(tableModel);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
@@ -128,244 +115,105 @@ public class PersonPanel extends JPanel {
         add(scrollPane, "grow, push");
     }
 
-    private void salvaPersona() {
-        String nome = nomeField.getText().trim();
-        String cognome = cognomeField.getText().trim();
-        String indirizzo = indirizzoField.getText().trim();
+    private void savePerson() {
+        String name = nameField.getText().trim();
+        String surname = surnameField.getText().trim();
+        String address = addressField.getText().trim();
         Status status = (Status) statusCombo.getSelectedItem();
 
-        if (nome.isEmpty() || cognome.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Nome e Cognome sono obbligatori!");
+        if (name.isEmpty() || surname.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Name and Surname are required!");
             return;
         }
 
-        personRepository.save(new Person(nome, cognome, indirizzo, status));
-        nomeField.setText("");
-        cognomeField.setText("");
-        indirizzoField.setText("");
+        // 🔹 Controllo duplicati
+        List<Person> duplicates = personRepository.findAll().stream()
+                .filter(p -> p.getName().equalsIgnoreCase(name)
+                        && p.getSurname().equalsIgnoreCase(surname))
+                .collect(Collectors.toList());
+
+        if (!duplicates.isEmpty()) {
+            String dupInfo = duplicates.stream()
+                    .map(p -> "- " + p.getName() + " " + p.getSurname() +
+                            (p.getAddress() != null && !p.getAddress().isEmpty() ? " (" + p.getAddress() + ")" : ""))
+                    .collect(Collectors.joining("\n"));
+
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "A person with the same name and surname already exists:\n\n" + dupInfo +
+                            "\n\nDo you want to save anyway?",
+                    "Duplicate Detected",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            if (choice != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        personRepository.save(new Person(name, surname, address, status));
+
+        nameField.setText("");
+        surnameField.setText("");
+        addressField.setText("");
         statusCombo.setSelectedIndex(0);
-        caricaPersone();
+        loadPeople();
     }
 
-    private void eliminaPersona() {
+    private void deletePerson() {
         int row = table.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Seleziona una persona da eliminare!");
+            JOptionPane.showMessageDialog(this, "Select a person to delete!");
             return;
         }
 
         Person p = tableModel.getPersonAt(row);
-        int conferma = JOptionPane.showConfirmDialog(this,
-                "Vuoi eliminare " + p.getName() + " " + p.getSurname() + "?",
-                "Conferma eliminazione", JOptionPane.YES_NO_OPTION);
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Do you really want to delete " + p.getName() + " " + p.getSurname() + "?",
+                "Confirm Deletion", JOptionPane.YES_NO_OPTION);
 
-        if (conferma == JOptionPane.YES_OPTION) {
+        if (confirm == JOptionPane.YES_OPTION) {
             personRepository.delete(p);
-            caricaPersone();
+            loadPeople();
         }
     }
 
-    private void caricaPersone() {
-        tuttePersone = personRepository.findAll();
-        tableModel.setData(tuttePersone);
+    private void loadPeople() {
+        allPeople = personRepository.findAll();
+        tableModel.setData(allPeople);
     }
 
-    private void filtra() {
-        if (tuttePersone == null) return;
-        String filtro = ricercaField.getText().toLowerCase();
+    private void filter() {
+        if (allPeople == null) return;
+        String filter = searchField.getText().toLowerCase();
 
-        if (filtro.isEmpty()) {
-            tableModel.setData(tuttePersone);
+        if (filter.isEmpty()) {
+            tableModel.setData(allPeople);
         } else {
-            List<Person> filtrate = tuttePersone.stream()
-                    .filter(p -> p.getName().toLowerCase().contains(filtro)
-                            || p.getSurname().toLowerCase().contains(filtro)
-                            || (p.getAddress() != null && p.getAddress().toLowerCase().contains(filtro)))
+            List<Person> filtered = allPeople.stream()
+                    .filter(p -> p.getName().toLowerCase().contains(filter)
+                            || p.getSurname().toLowerCase().contains(filter)
+                            || (p.getAddress() != null && p.getAddress().toLowerCase().contains(filter)))
                     .collect(Collectors.toList());
-            tableModel.setData(filtrate);
+            tableModel.setData(filtered);
         }
     }
 
-    private void esportaCSV() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Esporta Persone");
-        fileChooser.setFileFilter(new FileNameExtensionFilter("File CSV", "csv"));
-        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
-            if (!file.getName().toLowerCase().endsWith(".csv")) {
-                file = new File(file.getParentFile(), file.getName() + ".csv");
-            }
-
-            try (BufferedWriter writer = new BufferedWriter(
-                    new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
-
-                writer.write("ID;Nome;Cognome;Indirizzo;Status\n");
-                for (Person p : personRepository.findAll()) {
-                    writer.write(String.format("%d;%s;%s;%s;%s\n",
-                            p.getId() == null ? 0 : p.getId(),
-                            p.getName(),
-                            p.getSurname(),
-                            p.getAddress() == null ? "" : p.getAddress(),
-                            p.getStatus()));
-                }
-
-                JOptionPane.showMessageDialog(this, "Esportazione completata:\n" + file.getAbsolutePath());
-
-            } catch (IOException e) {
-                JOptionPane.showMessageDialog(this, "Errore durante l’esportazione: " + e.getMessage());
-            }
-        }
+    // 🔹 Deleghe al servizio
+    private void importCSV() {
+        List<Person> imported = importExportService.importFromCSV(
+                (JFrame) SwingUtilities.getWindowAncestor(this),
+                "Import People from CSV");
+        importExportService.importWithDuplicatesCheck(
+                (JFrame) SwingUtilities.getWindowAncestor(this),
+                imported);
+        loadPeople();
     }
 
-    private void importaCSV() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Importa Persone da CSV");
-        fileChooser.setFileFilter(new FileNameExtensionFilter("File CSV", "csv"));
-
-        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
-
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-
-                String line;
-                boolean firstLine = true;
-                DefaultListModel<Person> previewList = new DefaultListModel<>();
-
-                while ((line = reader.readLine()) != null) {
-                    if (firstLine) {
-                        firstLine = false;
-                        continue;
-                    }
-                    String[] parts = line.split(";", -1);
-                    if (parts.length < 5) continue;
-
-                    String name = parts[1].trim();
-                    String surname = parts[2].trim();
-                    String address = parts[3].trim();
-                    Status status;
-                    try {
-                        status = Status.valueOf(parts[4].trim());
-                    } catch (Exception e) {
-                        status = Status.SCONOSCIUTO; // fallback
-                    }
-
-                    previewList.addElement(new Person(name, surname, address, status));
-                }
-
-                if (previewList.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "Nessun record valido trovato nel CSV.");
-                    return;
-                }
-
-                // Mostra anteprima prima di confermare
-                mostraAnteprimaCSV(previewList, file.getName());
-
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "Errore durante la lettura del CSV:\n" + e.getMessage());
-            }
-        }
-    }
-    private void mostraAnteprimaCSV(DefaultListModel<Person> previewList, String fileName) {
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Anteprima Importazione: " + fileName, true);
-        dialog.setLayout(new BorderLayout(10, 10));
-        dialog.setSize(600, 400);
-        dialog.setLocationRelativeTo(this);
-
-        // Tabella anteprima
-        String[] columns = {"Nome", "Cognome", "Indirizzo", "Status"};
-        Object[][] data = new Object[previewList.size()][columns.length];
-        for (int i = 0; i < previewList.size(); i++) {
-            Person p = previewList.get(i);
-            data[i][0] = p.getName();
-            data[i][1] = p.getSurname();
-            data[i][2] = p.getAddress();
-            data[i][3] = p.getStatus();
-        }
-
-        JTable table = new JTable(data, columns);
-        dialog.add(new JScrollPane(table), BorderLayout.CENTER);
-
-        // Pulsanti
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton confirmButton = new JButton("✅ Importa");
-        JButton cancelButton = new JButton("❌ Annulla");
-
-        confirmButton.addActionListener(e -> {
-            int imported = 0;
-            for (int i = 0; i < previewList.size(); i++) {
-                personRepository.save(previewList.get(i));
-                imported++;
-            }
-            caricaPersone();
-            JOptionPane.showMessageDialog(this, "Importate " + imported + " persone dal file CSV.");
-            dialog.dispose();
-        });
-
-        cancelButton.addActionListener(e -> dialog.dispose());
-
-        buttonPanel.add(confirmButton);
-        buttonPanel.add(cancelButton);
-        dialog.add(buttonPanel, BorderLayout.SOUTH);
-
-        dialog.setVisible(true);
+    private void exportCSV() {
+        importExportService.exportToCSV((JFrame) SwingUtilities.getWindowAncestor(this));
     }
 
 
-    // 🔹 MODELLO TABELLA
-    private class PersonTableModel extends AbstractTableModel {
-        private final String[] columnNames = {"ID", "Nome", "Cognome", "Indirizzo", "Status"};
-        private List<Person> data;
-
-        public void setData(List<Person> persone) {
-            this.data = persone;
-            fireTableDataChanged();
-        }
-
-        public Person getPersonAt(int row) {
-            return data.get(row);
-        }
-
-        @Override public int getRowCount() { return data == null ? 0 : data.size(); }
-        @Override public int getColumnCount() { return columnNames.length; }
-        @Override public String getColumnName(int column) { return columnNames[column]; }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            Person p = data.get(rowIndex);
-            return switch (columnIndex) {
-                case 0 -> p.getId();
-                case 1 -> p.getName();
-                case 2 -> p.getSurname();
-                case 3 -> p.getAddress();
-                case 4 -> p.getStatus();
-                default -> null;
-            };
-        }
-
-        @Override public boolean isCellEditable(int rowIndex, int columnIndex) {
-            return columnIndex > 0;
-        }
-
-        @Override
-        public void setValueAt(Object value, int rowIndex, int columnIndex) {
-            Person p = data.get(rowIndex);
-            switch (columnIndex) {
-                case 1 -> p.setName((String) value);
-                case 2 -> p.setSurname((String) value);
-                case 3 -> p.setAddress((String) value);
-                case 4 -> p.setStatus((Status) value);
-            }
-            personRepository.save(p);
-        }
-
-        @Override
-        public Class<?> getColumnClass(int columnIndex) {
-            return switch (columnIndex) {
-                case 0 -> Long.class;
-                case 4 -> Status.class;
-                default -> String.class;
-            };
-        }
-    }
 }

@@ -1,4 +1,4 @@
-package org.surino.untraceable.controller.repository;
+package org.surino.untraceable.controller;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.surino.untraceable.model.Person;

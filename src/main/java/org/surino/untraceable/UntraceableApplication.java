@@ -1,5 +1,7 @@
 package org.surino.untraceable;
 
+import javax.swing.SwingUtilities;
+
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -19,7 +21,7 @@ public class UntraceableApplication {
                 .run(args);
 
         // Mostra la finestra Swing nel thread della GUI
-        javax.swing.SwingUtilities.invokeLater(() -> {
+        SwingUtilities.invokeLater(() -> {
             MainFrame frame = context.getBean(MainFrame.class);
             frame.setVisible(true);
         });
