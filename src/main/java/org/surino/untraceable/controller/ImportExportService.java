@@ -55,7 +55,7 @@ public class ImportExportService {
 
                 writer.write("ID;Name;Surname;Address;Status\n");
                 for (Person p : personRepository.findAll()) {
-                    writer.write(String.format("%s;%s;%s;%s\n",
+                    writer.write(String.format("%s,%s,%s,%s\n",
                             p.getName(),
                             p.getSurname(),
                             p.getAddress() == null ? "" : p.getAddress(),
@@ -97,15 +97,15 @@ public class ImportExportService {
 
             while ((line = reader.readLine()) != null) {
                 if (firstLine) { firstLine = false; continue; }
-                String[] parts = line.split(";", -1);
-                if (parts.length < 5) continue;
+                String[] parts = line.split(",", -1);
+                if (parts.length < 4) continue;
 
-                String name = parts[1].trim();
-                String surname = parts[2].trim();
-                String address = parts[3].trim();
+                String name = parts[0].trim();
+                String surname = parts[1].trim();
+                String address = parts[2].trim();
                 Status status;
                 try {
-                    status = Status.valueOf(parts[4].trim());
+                    status = Status.valueOf(parts[3].trim());
                 } catch (Exception e) {
                     status = Status.SCONOSCIUTO;
                 }
