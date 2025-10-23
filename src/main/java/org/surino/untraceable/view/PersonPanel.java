@@ -107,6 +107,7 @@ public class PersonPanel extends JPanel {
         tableModel = new PersonTableModel(personRepository);
         table = new JTable(tableModel);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setAutoCreateRowSorter(true);
 
         JComboBox<Status> comboBoxEditor = new JComboBox<>(Status.values());
         table.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(comboBoxEditor));
